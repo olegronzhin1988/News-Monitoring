@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
-    POSTGRES_DB:str = "news_monitoring_db"
+    POSTGRES_DB:str
     POSTGRES_HOST:str = "localhost"
     POSTGRES_PORT:int = 5432
 
@@ -28,9 +28,15 @@ class Settings(BaseSettings):
     def REDIS_URL(self) ->str:
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
-    RABBITMQ_URL:str
     RABBITMQ_USER:str
     RABBITMQ_PASSWORD:str
+    RABBITMQ_HOST:str = "localhost"
+    RABBITMQ_PORT:int = 5672
+
+    @computed_field
+    @property
+    def RABBITMQ_URL(self) -> str:
+        return f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASSWORD}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/"
 
     model_config = SettingsConfigDict(env_file=".env")
     

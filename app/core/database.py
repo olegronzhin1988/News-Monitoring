@@ -9,7 +9,9 @@ from app.core.config import settings as stngs
 engine = create_async_engine(stngs.DATABASE_URL)
 
 # Session for engine
-# Expire on_commit prevents auto expiration after commit
+# Expire on_commit prevents uploaded/changed objects
+# auto expiration after commit, so SQLAlchemy doesn`t
+# do new SELECT of existing data 
 new_session = async_sessionmaker(engine, 
                                  expire_on_commit=False)
 
