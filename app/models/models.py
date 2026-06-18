@@ -35,7 +35,7 @@ class SubscriptionsModel(Base):
 # Update time
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
                                                  default=lambda: datetime.now(timezone.utc),
-                                                 onupdate=lambda:datetime.now(timezone.utc))
+                                                 onupdate=lambda: datetime.now(timezone.utc))
 # Relatonships
 # subscription -> news_analyses, one to many
     news_analyses: Mapped[List["NewsAnalysisModel"]] = relationship(
