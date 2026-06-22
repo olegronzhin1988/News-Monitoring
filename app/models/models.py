@@ -81,7 +81,7 @@ class NewsAnalysisModel(Base):
 # news_analysis -> subscription, many to one
     subscription: Mapped[SubscriptionsModel] = relationship(back_populates="news_analyses")
 # news_analysis -> alerts, one to many
-    alert: Mapped[List["AlertsModel"]] = relationship(
+    alerts: Mapped[List["AlertsModel"]] = relationship(
         back_populates="news_analysis",
         cascade="all, delete-orphan"
     )

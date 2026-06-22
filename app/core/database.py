@@ -15,7 +15,7 @@ engine = create_async_engine(stngs.DATABASE_URL)
 new_session = async_sessionmaker(engine, 
                                  expire_on_commit=False)
 
-# Dependenct function for database session
+# Dependency function for database session
 async def get_db():
     async with new_session() as session:
         yield session
