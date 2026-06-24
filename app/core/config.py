@@ -5,7 +5,10 @@ from pydantic import computed_field
 class Settings(BaseSettings):
 
     GROQ_API_KEY:str
+    GROQ_MODEL:str
     NEWS_API_KEY:str
+    OPENROUTER_API_KEY:str
+    OPENROUTER_MODEL:str
     TELEGRAM_BOT_TOKEN:str
     TELEGRAM_CHAT_ID:str
 
