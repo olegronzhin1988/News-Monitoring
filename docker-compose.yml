@@ -1,6 +1,6 @@
 # docker-compose file, for docker
 services:
-# Postgress
+  # Postgress
   postgres:
     image: postgres:17
     environment:
@@ -11,33 +11,37 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-#check if db ready
+    #check if db ready
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 30s
 
-# redis
+  # redis
   redis:
     image: redis:8.6-alpine
     ports:
       - "6379:6379"
 
-# rabbitmq
+  # rabbitmq
   rabbitmq:
     image: rabbitmq:4-management
     ports:
+      - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASSWORD: ${RABBITMQ_PASSWORD}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/conf.d/20-deprecated-features.conf
+      - ./rabbitmq-init.sh:/rabbitmq-init.sh
+    command: >
+      bash -c " bash /rabbitmq-init.sh & rabbitmq-server "
 
-
-# api
+  # api
   api:
     image: python:3.12-slim
     ports:
@@ -52,4 +56,3 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
-      

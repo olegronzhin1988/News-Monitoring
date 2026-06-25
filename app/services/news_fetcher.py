@@ -7,6 +7,7 @@ from app.core.config import settings as stngs
 class NewsAPIError(Exception):
     pass
 
+# fetch news articles function
 async def fetch_news(topic:str,
                      language:str="en") -> list[dict]:
     
