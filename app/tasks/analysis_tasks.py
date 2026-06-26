@@ -64,6 +64,7 @@ async def _analyze_subscription_async(subscription_id:str)-> dict:
     else:
         analysis_res = await analyze_articles(topic=topic,
                                               articles=articles)
+        analys_dict["articles_count"] = len(articles)
 
 # Add analysis result to new_analysis
         analys_dict = analys_dict | analysis_res

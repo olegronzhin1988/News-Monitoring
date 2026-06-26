@@ -7,7 +7,8 @@ from app.core.config import settings as stngs
 celery_app=Celery(
     "news_monitoring",
     broker=stngs.RABBITMQ_URL,
-    backend=stngs.REDIS_URL
+    backend=stngs.REDIS_URL,
+    include=["app.tasks.analysis_tasks"]
 )
 
 # Updating app config
