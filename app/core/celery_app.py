@@ -1,6 +1,7 @@
 # celery_app.py, includes celery app and its config
 
 from celery import Celery
+from celery.schedules import crontab 
 from app.core.config import settings as stngs
 
 # Creating celery app
@@ -19,3 +20,10 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
 )
+# Setting app schedule, regular ctivity
+celery_app.conf.beat_schedule ={
+    "dispatch-due-analyses-every-minute": {
+        "task":"dispatch_due_analyses",
+        "schedule": crontab(minute="*")
+    },
+}

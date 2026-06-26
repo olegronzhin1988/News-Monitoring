@@ -1,22 +1,17 @@
-# analysis_tasks, includes tasks for analysis
+# analysis_tasks, includes service functions for analysis and celery tasks
 
 from uuid import UUID
 import asyncio
+from sqlalchemy import select, desc, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from datetime import datetime, timedelta, timezone
 from app.core.config import settings as stngs
 from app.core.celery_app import celery_app
 from app.models.models import SubscriptionsModel, NewsAnalysisModel
 from app.services.news_fetcher import fetch_news
 from app.services.llm_analyzer import analyze_articles
 
-
-# Celery task
-@celery_app.task(name="analyze_subscription")
-def analyze_subscription_task(subscription_id: str):
-    result = asyncio.run(_analyze_subscription_async(subscription_id))
-    return result
-
-
+# SERVICE FUNCTIONS.
 # Service function, transforms NewsAnalysisModel into dict
 def _NewsAnalysisModel_to_dict(analysis:NewsAnalysisModel) -> dict:
         result = {
@@ -31,10 +26,9 @@ def _NewsAnalysisModel_to_dict(analysis:NewsAnalysisModel) -> dict:
 }   
         return result
 
-
 # Main service function
 async def _analyze_subscription_async(subscription_id:str)-> dict:
-# Creating local async engine for celery tasks
+    # Creating local async engine for celery tasks
     engine = create_async_engine(stngs.DATABASE_URL)
     session_celery = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -85,3 +79,52 @@ async def _analyze_subscription_async(subscription_id:str)-> dict:
         return result
     finally:
         await engine.dispose()
+
+# Service function to launch analyses for subscriptions
+async def _dispatch_due_analyses_async():
+    # Creating local async engine for celery tasks
+    engine = create_async_engine(stngs.DATABASE_URL)
+    session_celery = async_sessionmaker(engine, expire_on_commit=False)
+
+
+    # Looking for active subscriptions
+    try:
+        dispatched_uuids  =[] 
+        async with session_celery() as session:
+            query = select(SubscriptionsModel).where(SubscriptionsModel.is_active == True)
+            result = await session.execute(query)
+            subscriptions_found = result.scalars().all()
+
+            # If there is any active subscriptions found
+            for subscription in subscriptions_found:
+                query = select(NewsAnalysisModel).where(
+                    NewsAnalysisModel.subscription_id == subscription.id
+                    ).order_by(
+                        desc(NewsAnalysisModel.analyzed_at)
+                        ).limit(1)
+                result = await session.execute(query)
+                last_analysis = result.scalar_one_or_none()
+
+                # Creating delayed task for subscription if there is no analysis or it was too long ago              
+                if not last_analysis or (datetime.now(timezone.utc) - last_analysis.analyzed_at) >= timedelta(minutes=subscription.check_interval_minutes):
+                    analyze_subscription_task.delay(str(subscription.id))                
+                    dispatched_uuids.append(str(subscription.id))
+
+        # Return analyzed subscriptions` UUIDs
+        return dispatched_uuids
+    finally:
+        await engine.dispose()
+
+
+# CELERY TASKS.
+# Analyze subscription task, launches subscription analysis
+@celery_app.task(name="analyze_subscription")
+def analyze_subscription_task(subscription_id: str):
+    result = asyncio.run(_analyze_subscription_async(subscription_id))
+    return result
+
+# Dispatcher for subscription analyses
+@celery_app.task(name="dispatch_due_analyses")
+def dispatch_due_analyses_task():
+    result = asyncio.run(_dispatch_due_analyses_async())
+    return result
