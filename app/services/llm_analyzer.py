@@ -40,16 +40,27 @@ def _build_prompt(topic:str, articles:list[dict]) ->str:
 
 # Service function to clean ai agent response and parse it to dict
 def _parse_llm_response(raw_text:str)->dict:
-# remowe markdown code blocks if present
+    # Remowe markdown code blocks if present
     cleaned=re.sub(r"```json|```","",raw_text).strip()
-    return json.loads(cleaned)
+
+    # Finding first JSON-object limits (if recieved more)
+    start = cleaned.find("{")
+    end = cleaned.find("}")+1
+
+    # Exception: no JSON objects found
+    if start ==-1 or end ==0:
+        raise LLMAnalysisError(f"No JSON object found in LLM response: {raw_text}")
+
+    # Cutting cleaned res to 1st JSON object
+    json_str=cleaned[start:end]
+    return json.loads(json_str)
 
 # Service function to call groq
 async def _call_groq(prompt:str) ->str:
-# Create groq client
+    # Create groq client
     client = AsyncGroq(api_key=stngs.GROQ_API_KEY)
 
-# Calling groq api with prompt
+    # Calling groq api with prompt
     response = await client.chat.completions.create(model=stngs.GROQ_MODEL, 
                                                     messages=[{"role":"user", "content":prompt}],
                                                     max_tokens=2048,
@@ -58,7 +69,7 @@ async def _call_groq(prompt:str) ->str:
 
 # Service function to call openrouter
 async def _call_openrouter(prompt:str)->str:
-# Creating openrouter request
+    # Creating openrouter request
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {stngs.OPENROUTER_API_KEY}",
@@ -78,10 +89,11 @@ async def _call_openrouter(prompt:str)->str:
 
 # Main service funnction to orchestrate process
 async def analyze_articles(topic:str, articles:list[dict])->dict:
-# Building prompt for llm 
+    # Building prompt for llm 
     prompt = _build_prompt(topic=topic, articles=articles)
     call_provider={"groq":_call_groq, "openrouter":_call_openrouter}
-# Trying to get data from some of LLMs
+
+    # Trying to get data from some of LLMs
     try:
         provider = "groq"
         raw = await call_provider[provider](prompt)
@@ -92,6 +104,8 @@ async def analyze_articles(topic:str, articles:list[dict])->dict:
         except Exception as e:
             raise LLMAnalysisError(f"Both providers failed: {e}")
     
-    result = _parse_llm_response(raw)
+    parsed= _parse_llm_response(raw)
+    result=dict(parsed)
     result["ai_provider_used"] = provider
+    result["raw_response"] = parsed
     return result
