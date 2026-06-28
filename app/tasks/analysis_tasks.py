@@ -2,12 +2,12 @@
 
 from uuid import UUID
 import asyncio
-from sqlalchemy import select, desc, update
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import select, desc, func
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings as stngs
 from app.core.celery_app import celery_app
-from app.models.models import SubscriptionsModel, NewsAnalysisModel
+from app.models.models import SubscriptionsModel, NewsAnalysisModel, AlertsModel
 from app.services.news_fetcher import fetch_news
 from app.services.llm_analyzer import analyze_articles
 
@@ -75,7 +75,24 @@ async def _analyze_subscription_async(subscription_id:str)-> dict:
             await session.commit()
             await session.refresh(new_analysis)
             result = _NewsAnalysisModel_to_dict(new_analysis)
-        
+
+            # Calling function to estimate sentiment changes, if there is any
+            sentiment_res =await _check_sentiment_drift(session=session, 
+                                                        subscription_id=subscription_pk,
+                                                        new_analysis=new_analysis)
+
+            # Creating new alert and adding to db
+            if sentiment_res:
+                new_alert = AlertsModel(
+                    subscription_id = subscription_pk,
+                    analysis_id = new_analysis.id,
+                    alert_type = sentiment_res["alert_type"],
+                    text = sentiment_res["message"],
+                    is_sent = False)
+                session.add(new_alert)
+                await session.commit()
+                await session.refresh(new_alert)
+
         return result
     finally:
         await engine.dispose()
@@ -115,6 +132,58 @@ async def _dispatch_due_analyses_async():
     finally:
         await engine.dispose()
 
+# Service function, measures sentiment drift
+async def _check_sentiment_drift(session:AsyncSession,
+                                subscription_id:UUID,
+                                new_analysis: NewsAnalysisModel) -> dict|None:
+    # Check if there were any analyses before
+    query = select(NewsAnalysisModel).where(NewsAnalysisModel.subscription_id == subscription_id, 
+                                            NewsAnalysisModel.id != new_analysis.id)
+    result = await session.execute(query)
+    analyses_found = result.scalars().all()
+
+    # No previous analyses - its first analysis
+    if not analyses_found:
+        return  {"alert_type":"first_analysis",
+                 "message":f"First analysis for subscription {subscription_id} created."} 
+    # There are previous analyses
+    else:
+        # Looking for recent analyses, made in past 24 hours 
+        cutoff = new_analysis.analyzed_at - timedelta(hours=24)
+        query = select(
+            NewsAnalysisModel).where(
+                NewsAnalysisModel.subscription_id == subscription_id,
+                NewsAnalysisModel.id != new_analysis.id,
+                NewsAnalysisModel.analyzed_at >= cutoff
+                ).order_by(desc(NewsAnalysisModel.analyzed_at)) 
+        result =  await session.execute(query)
+        recent_analyses = result.scalars().all()
+
+        # If there are none recent analyses, looking for any last
+        if not recent_analyses:
+            query = select(
+                NewsAnalysisModel).where(
+                    NewsAnalysisModel.subscription_id == subscription_id,
+                    NewsAnalysisModel.id != new_analysis.id
+                    ).order_by(desc(NewsAnalysisModel.analyzed_at)).limit(1)
+            result =  await session.execute(query)
+            last_analysis = result.scalar_one_or_none()
+            # baseline is taken as the last analysis sentiment score
+            baseline = last_analysis.sentiment_score
+        else:
+            # baseline taken as average sentiment score of recent analyses
+            baseline = sum([ analysis.sentiment_score for analysis in recent_analyses])/ len(recent_analyses)
+
+        # Choosing result value
+        if abs(new_analysis.sentiment_score - baseline) >= 0.5:
+            if new_analysis.sentiment_score > baseline:
+                return {"alert_type":"sentiment_spike",
+                        "message":f"Latest news for subscription {subscription_id} turned out quite positive."}
+            else:
+                return {"alert_type":"sentiment_drop",
+                        "message":f"Latest news for subscription {subscription_id} turned out quite negative."} 
+        else:
+            return None
 
 # CELERY TASKS.
 # Analyze subscription task, launches subscription analysis

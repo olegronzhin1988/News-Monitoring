@@ -100,7 +100,7 @@ class AlertsModel(Base):
 # Analysis ID, link to news_analysis
     analysis_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True),
                                                  ForeignKey("news_analyses.id"))
-# Notification type, "sentiment_drop"/"sentiment_spike"/"breaking_news"
+# Notification type, "sentiment_drop"/"sentiment_spike"/"first_analysis"
     alert_type: Mapped[str]
 # Notification text
     text: Mapped[str] = mapped_column(Text)
