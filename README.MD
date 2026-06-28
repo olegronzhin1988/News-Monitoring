@@ -13,50 +13,83 @@ A learning project: news monitoring by subscription topic with AI analysis (sent
 ## Project structure
 
 ```
-app/
-├── core/
-│   ├── config.py        # Settings (pydantic-settings), computed URLs
-│   ├── database.py       # async engine, session, get_db dependency (for FastAPI)
-│   └── celery_app.py     # Celery configuration, include with task modules
-├── models/
-│   └── models.py          # SubscriptionsModel, NewsAnalysisModel, AlertsModel
-├── schemas/
-│   └── subscription.py    # Pydantic schemas (Create/Update/Response)
-├── api/
-│   └── subscriptions.py   # CRUD router for subscriptions
-├── services/
-│   ├── news_fetcher.py     # NewsAPI integration (async httpx)
-│   └── llm_analyzer.py      # article analysis via Groq/OpenRouter with fallback
-└── tasks/
-    └── analysis_tasks.py    # Celery task analyze_subscription
+news-monitoring/
+├── docker-compose.yml
+├── Dockerfile             # shared image for api / celery-worker / celery-beat
+├── requirements.txt
+├── rabbitmq.conf
+├── rabbitmq-init.sh
+├── .env / .env.example
+├── alembic/
+├── app/
+│   ├── core/
+│   │   ├── config.py        # Settings (pydantic-settings), computed URLs
+│   │   ├── database.py       # async engine, session, get_db dependency (for FastAPI)
+│   │   └── celery_app.py     # Celery configuration, include with task modules
+│   ├── models/
+│   │   └── models.py          # SubscriptionsModel, NewsAnalysisModel, AlertsModel
+│   ├── schemas/
+│   │   └── subscription.py    # Pydantic schemas (Create/Update/Response)
+│   ├── api/
+│   │   └── subscriptions.py   # CRUD router for subscriptions
+│   ├── services/
+│   │   ├── news_fetcher.py     # NewsAPI integration (async httpx)
+│   │   ├── llm_analyzer.py      # article analysis via Groq/OpenRouter with fallback
+│   │   └── telegram_notifier.py # Telegram Bot API integration
+│   └── tasks/
+│       └── analysis_tasks.py    # Celery tasks: analyze_subscription, dispatch_due_analyses, send_pending_alerts
 ```
 
-## Running (development)
+## Running
+
+The whole stack — Postgres, Redis, RabbitMQ, the API, the Celery worker, and Celery Beat — now runs fully containerized via Docker Compose. No manual `uvicorn`/`celery` commands or extra terminals are needed.
 
 1. Copy `.env.example` → `.env`, fill in real keys.
    **Important:** do NOT use quotes around values or spaces around `=` in `.env`.
    Correct: `RABBITMQ_USER=user`
    Incorrect: `RABBITMQ_USER = "user"` (breaks Docker Compose, even though pydantic silently tolerates it — a mismatch between how different consumers of the file parse it).
 
-2. Start the infrastructure:
+2. Build and start everything:
    ```bash
-   docker-compose up -d
+   docker-compose up -d --build
    ```
 
-3. Apply migrations:
+3. Apply migrations (one-off, run against the running `postgres` container):
    ```bash
    alembic upgrade head
    ```
 
-4. Start the API:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+4. Check it's alive:
+   - API docs: `http://localhost:8000/docs`
+   - RabbitMQ management UI: `http://localhost:15672`
+   - Logs: `docker-compose logs -f api`, `docker-compose logs -f celery-worker`, `docker-compose logs -f celery-beat`
 
-5. Start the Celery worker (Windows — `--pool=solo` is mandatory):
-   ```bash
-   celery -A app.core.celery_app worker --loglevel=info --pool=solo
-   ```
+### Container networking — `localhost` vs service names
+
+Inside the Docker network, services reach each other by **service name**, not `localhost`. `localhost` inside a container refers to that container itself, not its neighbors.
+
+Because `.env` keeps `POSTGRES_HOST=localhost` / `REDIS_HOST=localhost` / `RABBITMQ_HOST=localhost` (useful for running the app directly on the host, outside Docker, during early development), the `api`, `celery-worker`, and `celery-beat` services override these three variables explicitly in `docker-compose.yml` via `environment:` (which takes precedence over `env_file:`):
+
+```yaml
+environment:
+  POSTGRES_HOST: postgres
+  REDIS_HOST: redis
+  RABBITMQ_HOST: rabbitmq
+```
+
+If you change `environment:` values in `docker-compose.yml` without rebuilding the image, a plain `docker-compose up -d` may not pick up the change on already-running containers — use `docker-compose down && docker-compose up -d` (or `--force-recreate`) to be sure.
+
+### Running outside Docker (optional, for quick local debugging)
+
+If you ever need to run things directly on the host again (e.g. for fast iteration without rebuilding images):
+
+```bash
+uvicorn app.main:app --reload
+celery -A app.core.celery_app worker --loglevel=info --pool=solo   # --pool=solo is mandatory on Windows
+celery -A app.core.celery_app beat --loglevel=info
+```
+
+In that case `.env`'s `localhost` values are correct as-is, since the host reaches the containers through their published ports.
 
 ## Known infrastructure quirks (worth reading)
 
@@ -121,9 +154,9 @@ Always use `AsyncGroq(...)` (and any other async SDK client built on top of `htt
 
 ## TODO / next steps
 
-- [ ] Celery Beat — periodic analysis runs based on `check_interval_minutes`
-- [ ] Sentiment drift detection — comparison with the previous analysis
-- [ ] Alerts + Telegram notifications (create a bot via `@BotFather`, get `chat_id`)
-- [ ] Add Celery worker and Beat as services in `docker-compose.yml`
-- [ ] Dockerfile for `api` (currently a placeholder `image: python:3.12-slim` without actually running the app)
-- [ ] pytest tests (after functionality is complete)
+- [x] Celery Beat — periodic analysis runs based on `check_interval_minutes`
+- [x] Sentiment drift detection — comparison with the previous analysis
+- [x] Alerts + Telegram notifications
+- [x] Add Celery worker and Beat as services in `docker-compose.yml`
+- [x] Dockerfile for `api` (shared by `api`, `celery-worker`, `celery-beat`)
+- [ ] pytest tests

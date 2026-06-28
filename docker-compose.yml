@@ -43,9 +43,15 @@ services:
 
   # api
   api:
-    image: python:3.12-slim
+    build: .
     ports:
-      - "8080:8080"
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +59,43 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  #celery-worker
+  celery-worker:
+    build: .
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    command: celery -A app.core.celery_app worker --loglevel=info
+
+  #celery-beat
+  celery-beat:
+    build: .
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    command: celery -A app.core.celery_app beat --loglevel=info
 volumes:
   postgres_data:
   rabbitmq_data:
