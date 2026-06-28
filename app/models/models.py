@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, relationship
 from sqlalchemy import Text, JSON, String, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from uuid import uuid4, UUID as PyUUID
 
 # Base class for other classes
@@ -105,8 +105,9 @@ class AlertsModel(Base):
 # Notification text
     text: Mapped[str] = mapped_column(Text)
 # Sending Date and time 
-    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
-                                              default=lambda:datetime.now(timezone.utc))
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),
+                                                        nullable=True,
+                                                        default=None)
 # Sending status
     is_sent: Mapped[bool]
 # Relationships

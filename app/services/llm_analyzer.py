@@ -58,14 +58,14 @@ def _parse_llm_response(raw_text:str)->dict:
 # Service function to call groq
 async def _call_groq(prompt:str) ->str:
     # Create groq client
-    client = AsyncGroq(api_key=stngs.GROQ_API_KEY)
+    async with AsyncGroq(api_key=stngs.GROQ_API_KEY) as client:
 
     # Calling groq api with prompt
-    response = await client.chat.completions.create(model=stngs.GROQ_MODEL, 
-                                                    messages=[{"role":"user", "content":prompt}],
-                                                    max_tokens=2048,
-                                                    temperature=0.2)
-    return response.choices[0].message.content 
+        response = await client.chat.completions.create(model=stngs.GROQ_MODEL, 
+                                                        messages=[{"role":"user", "content":prompt}],
+                                                        max_tokens=2048,
+                                                        temperature=0.2)
+        return response.choices[0].message.content 
 
 # Service function to call openrouter
 async def _call_openrouter(prompt:str)->str:

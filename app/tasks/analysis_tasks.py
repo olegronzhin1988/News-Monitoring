@@ -2,7 +2,7 @@
 
 from uuid import UUID
 import asyncio
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, update, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings as stngs
@@ -10,6 +10,7 @@ from app.core.celery_app import celery_app
 from app.models.models import SubscriptionsModel, NewsAnalysisModel, AlertsModel
 from app.services.news_fetcher import fetch_news
 from app.services.llm_analyzer import analyze_articles
+from app.services.telegram_notifier import send_telegram_message
 
 # SERVICE FUNCTIONS.
 # Service function, transforms NewsAnalysisModel into dict
@@ -103,7 +104,6 @@ async def _dispatch_due_analyses_async():
     engine = create_async_engine(stngs.DATABASE_URL)
     session_celery = async_sessionmaker(engine, expire_on_commit=False)
 
-
     # Looking for active subscriptions
     try:
         dispatched_uuids  =[] 
@@ -185,6 +185,37 @@ async def _check_sentiment_drift(session:AsyncSession,
         else:
             return None
 
+# Service function, sends pending notifcation
+async def _send_pending_alerts_async():
+   # Creating local async engine for celery tasks
+    engine = create_async_engine(stngs.DATABASE_URL)
+    session_celery = async_sessionmaker(engine, expire_on_commit=False)
+
+    # Looking for unsent notification
+    try:
+        sent_alerts =[] 
+        async with session_celery() as session:
+            query = select(AlertsModel).where(AlertsModel.is_sent == False)
+            result = await session.execute(query)
+            alerts_found = result.scalars().all()
+
+            # If there are any unsent notification
+            for alert in alerts_found:
+
+                #Trying to send and proccessing result
+                alert_sent = await send_telegram_message(alert.text)
+                if alert_sent:
+                    alert.is_sent = True
+                    alert.sent_at = datetime.now(timezone.utc)
+                    await session.commit()
+                    sent_alerts.append(alert.id)
+            
+        # Return notifications` IDs
+        return sent_alerts
+    finally:
+        await engine.dispose()    
+
+
 # CELERY TASKS.
 # Analyze subscription task, launches subscription analysis
 @celery_app.task(name="analyze_subscription")
@@ -196,4 +227,10 @@ def analyze_subscription_task(subscription_id: str):
 @celery_app.task(name="dispatch_due_analyses")
 def dispatch_due_analyses_task():
     result = asyncio.run(_dispatch_due_analyses_async())
+    return result
+
+# Dispatcher for sending alerts
+@celery_app.task(name="send_pending_alerts")
+def send_pending_alerts_task():
+    result = asyncio.run(_send_pending_alerts_async())
     return result

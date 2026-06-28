@@ -109,6 +109,10 @@ Multiple calls to `asyncio.run()` across different Celery tasks **must not reuse
 
 **Fix**: a **local** engine is created inside the Celery task on every call, and is always released via `finally: await engine.dispose()`.
 
+### httpx/groq client cleanup + asyncio.run() on Windows
+
+Always use `AsyncGroq(...)` (and any other async SDK client built on top of `httpx.AsyncClient`) as an async context manager (`async with`), not as a bare object created and left to garbage collection. Without it, the SDK's internal HTTP client may finalize its connections in a background task scheduled via `call_soon`, which can run *after* `asyncio.run()` has already closed the event loop for that task — producing a noisy (but non-fatal) `RuntimeError: Event loop is closed` / `Task exception was never retrieved` in the worker logs. The task itself still succeeds; only the cleanup log is affected. Wrapping the client creation in `async with AsyncGroq(api_key=...) as client:` resolved this in our case.
+
 ### `.env` — general rules
 
 - No quotes around values, no spaces around `=`.

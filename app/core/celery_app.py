@@ -26,4 +26,8 @@ celery_app.conf.beat_schedule ={
         "task":"dispatch_due_analyses",
         "schedule": crontab(minute="*")
     },
+    "send-pending-alerts-every-minute": {
+    "task":"send_pending_alerts",
+    "schedule": crontab(minute="*")
+    },
 }
