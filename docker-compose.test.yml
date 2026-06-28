@@ -1,0 +1,25 @@
+# docker-compose.test.yml — isolated Postgres instance for running pytest.
+# Does NOT touch the main development database/volume.
+#
+# Usage:
+#   docker-compose -f docker-compose.test.yml up -d
+#   pytest
+#   docker-compose -f docker-compose.test.yml down -v
+
+services:
+  postgres-test:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: news_monitoring_test
+    ports:
+      - "5433:5432"   # different host port to avoid clashing with the dev postgres
+    tmpfs:
+      - /var/lib/postgresql/data   # ephemeral storage — fresh DB every container start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

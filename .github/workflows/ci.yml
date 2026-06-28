@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Services run as sidecar containers, reachable by service name from the
+    # job's own container/runner network — same idea as the project's
+    # docker-compose.yml, just expressed in GitHub Actions' own syntax.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: news_monitoring_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8.6-alpine
+        ports:
+          - 6379:6379
+
+      rabbitmq:
+        # NOTE: unlike docker-compose.yml, this CI job does NOT need
+        # rabbitmq-init.sh / rabbitmq.conf (our usual fixes for RabbitMQ 4.x
+        # credential seeding and the deprecated `transient_nonexcl_queues`
+        # feature — see README). The test suite never opens a real AMQP
+        # connection: Celery task functions are tested directly as plain
+        # async functions, and external services are mocked. RabbitMQ is
+        # only kept here for completeness/parity with the dev stack.
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: test_user
+          RABBITMQ_DEFAULT_PASSWORD: test_password
+        ports:
+          - 5672:5672
+          - 15672:15672
+
+    env:
+      # Dummy values for secrets the app never actually calls in tests
+      # (every external API — NewsAPI, Groq, OpenRouter, Telegram — is mocked).
+      # Real-looking, harmless placeholders are enough to satisfy pydantic-settings.
+      GROQ_API_KEY: ci-placeholder
+      GROQ_MODEL: llama-3.1-8b-instant
+      NEWS_API_KEY: ci-placeholder
+      OPENROUTER_API_KEY: ci-placeholder
+      OPENROUTER_MODEL: ci-placeholder
+      TELEGRAM_BOT_TOKEN: ci-placeholder
+      TELEGRAM_CHAT_ID: ci-placeholder
+
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: news_monitoring_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+
+      RABBITMQ_USER: test_user
+      RABBITMQ_PASSWORD: test_password
+      RABBITMQ_HOST: localhost
+      RABBITMQ_PORT: "5672"
+
+      # conftest.py also reads these directly to point at the test DB;
+      # keep them consistent with the postgres service above.
+      TEST_POSTGRES_HOST: localhost
+      TEST_POSTGRES_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Run tests
+        run: pytest -v --tb=short

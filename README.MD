@@ -14,13 +14,28 @@ A learning project: news monitoring by subscription topic with AI analysis (sent
 
 ```
 news-monitoring/
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # GitHub Actions: spins up Postgres/Redis/RabbitMQ, runs pytest
 ├── docker-compose.yml
-├── Dockerfile             # shared image for api / celery-worker / celery-beat
+├── docker-compose.test.yml  # isolated Postgres for running tests locally
+├── Dockerfile               # shared image for api / celery-worker / celery-beat
 ├── requirements.txt
+├── requirements-test.txt
+├── pytest.ini
+├── TESTING.md
 ├── rabbitmq.conf
 ├── rabbitmq-init.sh
 ├── .env / .env.example
 ├── alembic/
+├── tests/
+│   ├── conftest.py
+│   ├── test_subscriptions_api.py
+│   ├── test_news_fetcher.py
+│   ├── test_llm_analyzer.py
+│   ├── test_telegram_notifier.py
+│   ├── test_sentiment_drift.py
+│   └── test_analysis_tasks.py
 ├── app/
 │   ├── core/
 │   │   ├── config.py        # Settings (pydantic-settings), computed URLs
@@ -152,6 +167,32 @@ Always use `AsyncGroq(...)` (and any other async SDK client built on top of `htt
 - `pydantic-settings` strips quotes automatically when parsing — which is why the Docker Compose-side error went unnoticed for a long time on the Python side.
 - `.env` must live in the project root (not in `app/core/`) — alongside `docker-compose.yml`, and relative to the working directory `uvicorn`/`celery` are launched from.
 
+## Testing
+
+A pytest suite covers the subscription CRUD API, `news_fetcher`, `llm_analyzer`
+(including the Groq → OpenRouter fallback and JSON parsing edge cases),
+`telegram_notifier`, sentiment drift detection, and the full async service
+functions behind the three Celery tasks. External APIs (NewsAPI, Groq,
+OpenRouter, Telegram) are always mocked; an isolated Postgres test database
+(separate from the dev one) is used for everything that touches the DB.
+
+```bash
+pip install -r requirements.txt -r requirements-test.txt
+docker-compose -f docker-compose.test.yml up -d
+pytest
+```
+
+See `TESTING.md` for the full breakdown of what's covered, fixture design
+notes, and a couple of documented gaps worth knowing about.
+
+## CI
+
+`.github/workflows/ci.yml` runs the same test suite on every push/PR to
+`main`, using GitHub Actions' `services:` to spin up Postgres, Redis, and
+RabbitMQ as sidecar containers for the job. All external third-party APIs
+are mocked in the tests themselves, so CI needs no real API keys — only
+harmless placeholder values to satisfy `pydantic-settings` at import time.
+
 ## TODO / next steps
 
 - [x] Celery Beat — periodic analysis runs based on `check_interval_minutes`
@@ -159,4 +200,4 @@ Always use `AsyncGroq(...)` (and any other async SDK client built on top of `htt
 - [x] Alerts + Telegram notifications
 - [x] Add Celery worker and Beat as services in `docker-compose.yml`
 - [x] Dockerfile for `api` (shared by `api`, `celery-worker`, `celery-beat`)
-- [ ] pytest tests
+- [x] pytest tests

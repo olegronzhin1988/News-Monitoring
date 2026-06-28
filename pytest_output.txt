@@ -1,0 +1,63 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\Oleg\portfolio\News-Monitoring\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Oleg\portfolio\News-Monitoring
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.14.1, asyncio-0.25.2, mock-3.14.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 51 items
+
+tests/test_analysis_tasks.py::TestAnalyzeSubscriptionAsync::test_raises_when_subscription_does_not_exist PASSED [  1%]
+tests/test_analysis_tasks.py::TestAnalyzeSubscriptionAsync::test_saves_neutral_analysis_when_no_articles_found PASSED [  3%]
+tests/test_analysis_tasks.py::TestAnalyzeSubscriptionAsync::test_saves_llm_result_when_articles_are_found PASSED [  5%]
+tests/test_analysis_tasks.py::TestAnalyzeSubscriptionAsync::test_creates_first_analysis_alert_on_first_run PASSED [  7%]
+tests/test_analysis_tasks.py::TestAnalyzeSubscriptionAsync::test_does_not_create_alert_when_sentiment_is_stable PASSED [  9%]
+tests/test_analysis_tasks.py::TestDispatchDueAnalysesAsync::test_dispatches_subscription_with_no_prior_analysis PASSED [ 11%]
+tests/test_analysis_tasks.py::TestDispatchDueAnalysesAsync::test_dispatches_subscription_when_interval_has_elapsed PASSED [ 13%]
+tests/test_analysis_tasks.py::TestDispatchDueAnalysesAsync::test_skips_subscription_analyzed_recently PASSED [ 15%]
+tests/test_analysis_tasks.py::TestDispatchDueAnalysesAsync::test_skips_inactive_subscriptions PASSED [ 17%]
+tests/test_analysis_tasks.py::TestSendPendingAlertsAsync::test_sends_unsent_alert_and_marks_it_sent PASSED [ 19%]
+tests/test_analysis_tasks.py::TestSendPendingAlertsAsync::test_leaves_alert_unsent_when_telegram_fails PASSED [ 21%]
+tests/test_analysis_tasks.py::TestSendPendingAlertsAsync::test_ignores_already_sent_alerts PASSED [ 23%]
+tests/test_llm_analyzer.py::TestParseLLMResponse::test_parses_clean_json PASSED [ 25%]
+tests/test_llm_analyzer.py::TestParseLLMResponse::test_strips_markdown_code_fences PASSED [ 27%]
+tests/test_llm_analyzer.py::TestParseLLMResponse::test_ignores_trailing_text_after_the_json_object PASSED [ 29%]
+tests/test_llm_analyzer.py::TestParseLLMResponse::test_raises_when_no_json_object_present PASSED [ 31%]
+tests/test_llm_analyzer.py::TestBuildPrompt::test_truncates_to_first_15_articles PASSED [ 33%]
+tests/test_llm_analyzer.py::TestBuildPrompt::test_includes_topic_in_prompt PASSED [ 35%]
+tests/test_llm_analyzer.py::TestAnalyzeArticles::test_uses_groq_when_it_succeeds PASSED [ 37%]
+tests/test_llm_analyzer.py::TestAnalyzeArticles::test_falls_back_to_openrouter_when_groq_fails PASSED [ 39%]
+tests/test_llm_analyzer.py::TestAnalyzeArticles::test_raises_when_both_providers_fail PASSED [ 41%]
+tests/test_llm_analyzer.py::TestAnalyzeArticles::test_raises_when_groq_returns_malformed_json PASSED [ 43%]
+tests/test_news_fetcher.py::test_fetch_news_returns_parsed_articles_on_success PASSED [ 45%]
+tests/test_news_fetcher.py::test_fetch_news_filters_out_removed_articles PASSED [ 47%]
+tests/test_news_fetcher.py::test_fetch_news_raises_on_invalid_api_key PASSED [ 49%]
+tests/test_news_fetcher.py::test_fetch_news_raises_on_rate_limit PASSED  [ 50%]
+tests/test_news_fetcher.py::test_fetch_news_raises_on_unexpected_status_code PASSED [ 52%]
+tests/test_news_fetcher.py::test_fetch_news_raises_when_api_status_field_is_not_ok PASSED [ 54%]
+tests/test_news_fetcher.py::test_fetch_news_returns_empty_list_when_no_articles_found PASSED [ 56%]
+tests/test_sentiment_drift.py::test_returns_first_analysis_alert_when_no_history_exists PASSED [ 58%]
+tests/test_sentiment_drift.py::test_returns_none_when_drift_is_within_threshold PASSED [ 60%]
+tests/test_sentiment_drift.py::test_returns_sentiment_drop_when_current_score_is_much_lower PASSED [ 62%]
+tests/test_sentiment_drift.py::test_returns_sentiment_spike_when_current_score_is_much_higher PASSED [ 64%]
+tests/test_sentiment_drift.py::test_baseline_is_average_of_analyses_within_last_24_hours PASSED [ 66%]
+tests/test_sentiment_drift.py::test_falls_back_to_last_analysis_when_nothing_within_24_hours PASSED [ 68%]
+tests/test_sentiment_drift.py::test_drift_check_is_isolated_per_subscription PASSED [ 70%]
+tests/test_subscriptions_api.py::test_create_subscription_returns_201_with_full_payload PASSED [ 72%]
+tests/test_subscriptions_api.py::test_create_subscription_applies_defaults_when_optional_fields_omitted PASSED [ 74%]
+tests/test_subscriptions_api.py::test_create_subscription_without_topic_returns_422 PASSED [ 76%]
+tests/test_subscriptions_api.py::test_get_subscription_list_returns_all_created_subscriptions PASSED [ 78%]
+tests/test_subscriptions_api.py::test_get_subscription_list_respects_skip_and_limit PASSED [ 80%]
+tests/test_subscriptions_api.py::test_get_subscription_by_id_returns_matching_subscription PASSED [ 82%]
+tests/test_subscriptions_api.py::test_get_subscription_by_unknown_id_returns_404 PASSED [ 84%]
+tests/test_subscriptions_api.py::test_patch_subscription_updates_only_provided_fields PASSED [ 86%]
+tests/test_subscriptions_api.py::test_patch_subscription_can_set_falsy_values PASSED [ 88%]
+tests/test_subscriptions_api.py::test_patch_unknown_subscription_returns_404 PASSED [ 90%]
+tests/test_subscriptions_api.py::test_delete_subscription_returns_204_and_removes_it PASSED [ 92%]
+tests/test_subscriptions_api.py::test_delete_unknown_subscription_returns_404 PASSED [ 94%]
+tests/test_telegram_notifier.py::test_returns_true_on_successful_send PASSED [ 96%]
+tests/test_telegram_notifier.py::test_returns_false_on_telegram_error_response PASSED [ 98%]
+tests/test_telegram_notifier.py::test_propagates_network_level_exceptions PASSED [100%]
+
+============================= 51 passed in 6.31s ==============================

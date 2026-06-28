@@ -46,7 +46,7 @@ async def fetch_news(topic:str,
     articles = [
         {
         "title": article.get("title", ""),
-        "description": article.get("description", ""),
+        "description": article.get("description") or "",
         "url": article.get("url", ""),
         "published_at": article.get("publishedAt", ""),
         "source": article.get("source",{}).get("name", "Unknown"),
