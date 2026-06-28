@@ -31,3 +31,7 @@ htmlcov/
 
 # Logs
 *.log
+
+# Celery Beat local schedule and process tracking files
+celerybeat-schedule*
+celerybeat.pid
