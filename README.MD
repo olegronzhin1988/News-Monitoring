@@ -12,7 +12,23 @@
 ![pytest](https://img.shields.io/badge/pytest-51%20passed-0A9EDC?logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-A learning project: news monitoring by subscription topic with AI analysis (sentiment, summary, key events) and asynchronous processing via Celery + RabbitMQ.
+A learning project: an autonomous news monitoring service that tracks topics of interest, analyzes incoming articles with LLMs, detects significant sentiment shifts, and sends Telegram alerts — all without any manual interaction after initial setup.
+
+Users create **subscriptions** for topics they want to follow (e.g. "Bitcoin", "Tesla", "The Beatles"). A scheduler picks up each subscription at its configured interval, fetches the latest news from NewsAPI, and sends the articles to an LLM (Groq with OpenRouter as fallback) for analysis. The LLM returns a sentiment score, a short summary, and a list of key events. Results are persisted to a PostgreSQL database, and if the sentiment has shifted significantly compared to the recent historical average, an alert is created and delivered to Telegram.
+
+The entire pipeline runs asynchronously and fully containerized:
+
+- **FastAPI** exposes a REST API for managing subscriptions (CRUD) with async SQLAlchemy 2.0 and Pydantic v2 for validation
+- **Celery Beat** acts as the scheduler — every minute it checks which subscriptions are due for analysis and enqueues tasks
+- **RabbitMQ** is the message broker — it holds the queue of incoming background tasks waiting to be processed
+- **Celery Worker** consumes tasks from RabbitMQ and executes the actual pipeline: fetch → analyze → persist → alert
+- **Redis** stores Celery task results (result backend)
+- **PostgreSQL** is the primary database: subscriptions, analysis history, and alert records
+- **Alembic** handles schema migrations
+- **Groq / OpenRouter** provide LLM inference with automatic provider fallback
+- **Telegram Bot API** delivers alerts when sentiment drift exceeds the configured threshold
+
+The project was built progressively as a mentored learning exercise, going from a basic FastAPI CRUD service up through async ORM, multi-provider LLM orchestration, task queues, Docker Compose multi-service deployment, and a pytest suite with mocked external APIs and an isolated test database.
 
 ## Stack
 
